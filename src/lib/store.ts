@@ -71,6 +71,27 @@ export async function addRecord(r: Omit<SavedRecord, 'id' | 'addedAt'>) {
   return record
 }
 
+export async function updateRecord(record: SavedRecord) {
+  await run('readwrite', (s) => s.put(record))
+  changed()
+}
+
+/** Restores records from a backup; entries with the same id are replaced, so importing twice adds nothing. */
+export async function putRecords(records: SavedRecord[]) {
+  await db().then(
+    (d) =>
+      new Promise<void>((resolve, reject) => {
+        const tx = d.transaction(STORE, 'readwrite')
+        const store = tx.objectStore(STORE)
+        for (const r of records) store.put(r)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error)
+      }),
+  )
+  changed()
+}
+
 export async function deleteRecord(id: string) {
   await run('readwrite', (s) => s.delete(id))
   changed()

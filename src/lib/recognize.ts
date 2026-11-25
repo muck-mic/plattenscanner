@@ -1,5 +1,3 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod'
 import { z } from 'zod'
 
 export type ModelChoice = 'claude-opus-5-5' | 'claude-haiku-5-5'
@@ -30,6 +28,13 @@ Wenn du den Künstler und das Album am Coverbild erkennst, obwohl kein Text lesb
 
 export class RecognizeError extends Error {}
 
+function loadClaude() {
+  return import('./claude').catch(() => {
+    // After a new version was published the old file is gone; a reload fetches the current one.
+    throw new RecognizeError('Die App wurde aktualisiert. Bitte schließe sie und öffne sie neu.')
+  })
+}
+
 export interface Recognition {
   info: RecordInfo
   costUsd: number
@@ -49,59 +54,15 @@ export async function askAboutPhoto<S extends z.ZodType>(
   effort: 'low' | 'medium',
 ): Promise<{ info: z.infer<S>; costUsd: number }> {
   if (!apiKey) throw new RecognizeError('Kein Claude-Schlüssel hinterlegt. Bitte in den Einstellungen eintragen.')
-  // The key is stored only on this device and the app is for personal use, so calling the API from the browser is acceptable.
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 })
-
-  let response
-  try {
-    response = await client.beta.messages.parse({
-      model,
-      max_tokens: 4000,
-      output_config: { effort, format: betaZodOutputFormat(schema) },
-      // Opus 5.5: if a safety classifier declines, the API retries on a suitable fallback model.
-      ...(model === 'claude-opus-5-5' ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpegBase64 } },
-            { type: 'text', text: prompt },
-          ],
-        },
-      ],
-    })
-  } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) throw new RecognizeError('Claude lehnt den Schlüssel ab. Bitte in den Einstellungen prüfen.')
-    if (err instanceof Anthropic.PermissionDeniedError) throw new RecognizeError('Der Schlüssel hat keinen Zugriff auf dieses Modell.')
-    if (err instanceof Anthropic.RateLimitError) throw new RecognizeError('Zu viele Anfragen an Claude. Bitte kurz warten.')
-    if (err instanceof Anthropic.BadRequestError) throw new RecognizeError(`Claude konnte die Anfrage nicht verarbeiten: ${err.message}`)
-    if (err instanceof Anthropic.APIConnectionError) throw new RecognizeError('Keine Verbindung zu Claude. Bist du online?')
-    if (err instanceof Anthropic.APIError) throw new RecognizeError(`Claude-Fehler ${err.status ?? ''}. Bitte erneut versuchen.`)
-    throw err
-  }
-
-  const price = MODELS[model]
-  const u = response.usage
-  const inputTokens = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0)
-  const costUsd = (inputTokens * price.inputPerM + u.output_tokens * price.outputPerM) / 1_000_000
-
-  if (response.stop_reason === 'refusal') throw new RecognizeError('Claude hat die Erkennung dieses Fotos abgelehnt.')
-  if (response.stop_reason === 'max_tokens' || !response.parsed_output)
-    throw new RecognizeError('Die Antwort von Claude war unvollständig. Bitte erneut versuchen.')
-  return { info: response.parsed_output, costUsd }
+  // The Claude SDK is loaded only when it's first needed, so the app starts faster.
+  const { callClaude } = await loadClaude()
+  return callClaude(apiKey, model, jpegBase64, prompt, schema, effort)
 }
 
 /** Free check whether a key works: looks up the model, which costs no tokens. */
 export async function checkApiKey(apiKey: string, model: ModelChoice) {
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 0 })
-  try {
-    await client.models.retrieve(model)
-  } catch (err) {
-    if (err instanceof Anthropic.AuthenticationError) throw new RecognizeError('Claude lehnt den Schlüssel ab.')
-    if (err instanceof Anthropic.APIConnectionError) throw new RecognizeError('Keine Verbindung zu Claude.')
-    if (err instanceof Anthropic.APIError) throw new RecognizeError(`Prüfung fehlgeschlagen (Fehler ${err.status ?? ''}).`)
-    throw err
-  }
+  const { checkKey } = await loadClaude()
+  return checkKey(apiKey, model)
 }
 
 /** Grabs the current video frame as JPEG, long edge at most 1568 px (Claude's useful image size). */

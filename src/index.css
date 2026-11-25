@@ -137,3 +137,10 @@ a.btn { text-decoration: none; }
 .saved-link { display: flex; gap: 12px; flex: 1; min-width: 0; padding: 10px; color: inherit; text-decoration: none; }
 .delete { flex: none; width: 44px; border: none; background: transparent; color: var(--muted); font-size: 16px; }
 .field input[type='search'] { -webkit-appearance: none; }
+.record-card { flex-direction: column; align-items: stretch; padding: 0; gap: 0; }
+.record-head { display: flex; gap: 12px; align-items: flex-start; padding: 10px; background: none; border: none; text-align: left; width: 100%; font: inherit; color: inherit; }
+.record-editor { display: flex; flex-direction: column; gap: 12px; padding: 0 10px 12px; }
+.record-editor .group { background: var(--surface-2); }
+.record-editor .row + .row { border-top-color: #3a3b40; }
+.result-meta.wrap { white-space: normal; overflow: visible; line-height: 1.5; margin: 0; }
+.list-tools { align-items: end; }
