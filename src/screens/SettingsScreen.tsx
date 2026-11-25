@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { getIdentity, DiscogsError } from '../lib/discogs'
 import type { Settings } from '../lib/settings'
+import { BUILD_ID } from '../lib/update'
 
 interface Props {
   settings: Settings
@@ -86,6 +87,8 @@ export default function SettingsScreen({ settings, update }: Props) {
       <div className="group">
         <div className="row"><span>Claude-Schlüssel</span><span className="muted">folgt in Phase 3</span></div>
       </div>
+
+      <p className="hint">App-Version {BUILD_ID}</p>
     </div>
   )
 }
