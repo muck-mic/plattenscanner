@@ -36,6 +36,18 @@ export interface Recognition {
 }
 
 export async function recognizeRecord(apiKey: string, model: ModelChoice, jpegBase64: string): Promise<Recognition> {
+  return askAboutPhoto(apiKey, model, jpegBase64, PROMPT, RecordInfo, 'low')
+}
+
+/** Sends one photo plus instructions to Claude and returns the structured answer and its estimated cost. */
+export async function askAboutPhoto<S extends z.ZodType>(
+  apiKey: string,
+  model: ModelChoice,
+  jpegBase64: string,
+  prompt: string,
+  schema: S,
+  effort: 'low' | 'medium',
+): Promise<{ info: z.infer<S>; costUsd: number }> {
   if (!apiKey) throw new RecognizeError('Kein Claude-Schlüssel hinterlegt. Bitte in den Einstellungen eintragen.')
   // The key is stored only on this device and the app is for personal use, so calling the API from the browser is acceptable.
   const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 1 })
@@ -45,7 +57,7 @@ export async function recognizeRecord(apiKey: string, model: ModelChoice, jpegBa
     response = await client.beta.messages.parse({
       model,
       max_tokens: 4000,
-      output_config: { effort: 'low', format: betaZodOutputFormat(RecordInfo) },
+      output_config: { effort, format: betaZodOutputFormat(schema) },
       // Opus 5.5: if a safety classifier declines, the API retries on a suitable fallback model.
       ...(model === 'claude-opus-5-5' ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
       messages: [
@@ -53,7 +65,7 @@ export async function recognizeRecord(apiKey: string, model: ModelChoice, jpegBa
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpegBase64 } },
-            { type: 'text', text: PROMPT },
+            { type: 'text', text: prompt },
           ],
         },
       ],

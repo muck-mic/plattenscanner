@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { DiscogsError, releaseUrl, searchByBarcode, searchReleases, splitTitle } from '../lib/discogs'
+import { DiscogsError, searchByBarcode, searchReleases } from '../lib/discogs'
 import type { SearchQuery, SearchResult } from '../lib/discogs'
 import { barcodeVariants } from '../lib/barcode'
 import { fileToJpegBase64, recognizeRecord, RecognizeError, type RecordInfo } from '../lib/recognize'
 import { addCost, formatUsd, type Settings, type UpdateSettings } from '../lib/settings'
 import CameraScanner from '../components/CameraScanner'
+import CandidateList from '../components/CandidateList'
+import { ReleaseView, VersionsView } from '../components/ReleaseView'
+import type { MatrixMatch } from '../lib/matrix'
 import { ChevronLeft, SearchIcon } from '../components/Icons'
 
 interface Props {
@@ -15,6 +18,11 @@ interface Props {
 }
 
 type View = 'camera' | 'photo' | 'manual'
+
+// Pages opened on top of the results (release details, all pressings); the last one is on screen.
+type Page =
+  | { kind: 'release'; id: number; match?: MatrixMatch }
+  | { kind: 'versions'; masterId: number; artist: string; title: string }
 
 interface Recognized {
   info: RecordInfo
@@ -69,6 +77,14 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
   const [view, setView] = useState<View>('camera')
   const [query, setQuery] = useState<SearchQuery>(EMPTY)
   const [status, setStatus] = useState<Status>({ state: 'idle' })
+  const [pages, setPages] = useState<Page[]>([])
+  const push = (p: Page) => {
+    setPages((ps) => [...ps, p])
+    window.scrollTo(0, 0)
+  }
+  const pop = () => setPages((ps) => ps.slice(0, -1))
+  const openRelease = (id: number, match?: MatrixMatch) => push({ kind: 'release', id, match })
+  const openVersions = (masterId: number, artist: string, title: string) => push({ kind: 'versions', masterId, artist, title })
   const hasInput = Object.values(query).some((v) => v?.trim())
 
   const set = (key: keyof SearchQuery) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -78,6 +94,7 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
     setStatus({ state: 'loading', label: `Barcode ${code} erkannt – suche bei Discogs …` })
     try {
       const found = await searchByBarcode(settings.discogsToken, barcodeVariants(code))
+      setPages([])
       setStatus({ state: 'results', source: `Barcode ${code}`, barcode: code, ...found })
     } catch (err) {
       setStatus(toError(err, !!settings.discogsToken))
@@ -90,6 +107,7 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
     setStatus({ state: 'loading', label: 'Suche bei Discogs …' })
     try {
       const found = await searchReleases(settings.discogsToken, query)
+      setPages([])
       setStatus({ state: 'results', source: 'Manuelle Suche', ...found })
     } catch (err) {
       setStatus(toError(err, !!settings.discogsToken))
@@ -111,6 +129,7 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
       update((prev) => addCost(prev, costUsd))
       setStatus({ state: 'loading', label: 'Erkannt – suche bei Discogs …' })
       const found = await searchFromInfo(settings.discogsToken, info)
+      setPages([])
       setStatus({ state: 'results', ...found, recognized: { info, costUsd, photo: jpeg } })
     } catch (err) {
       setStatus(toError(err, !!settings.discogsToken))
@@ -141,6 +160,7 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
   }
 
   function backToScanning() {
+    setPages([])
     setStatus({ state: 'idle' })
   }
 
@@ -151,8 +171,10 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
   }
 
   if (status.state === 'results') {
+    const top = pages.length - 1
     return (
-      <div className="screen">
+      <>
+      <div className="screen" hidden={pages.length > 0}>
         <button className="back" onClick={backToScanning}>
           <ChevronLeft /> {view === 'manual' ? 'Suche' : 'Weiter scannen'}
         </button>
@@ -172,14 +194,34 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
             )}
           </div>
         )}
-        <ul className="results">
-          {status.results.map((r) => (
-            <li key={r.id}>
-              <ResultCard result={r} />
-            </li>
-          ))}
-        </ul>
+        <CandidateList
+          key={status.source}
+          settings={settings}
+          update={update}
+          candidates={status.results}
+          visible={active && pages.length === 0}
+          onOpen={openRelease}
+        />
       </div>
+      {pages.map((p, i) => (
+        <div key={i} hidden={i !== top}>
+          {p.kind === 'release' ? (
+            <ReleaseView token={settings.discogsToken} id={p.id} match={p.match} onBack={pop} onOpenVersions={openVersions} />
+          ) : (
+            <VersionsView
+              settings={settings}
+              update={update}
+              masterId={p.masterId}
+              artist={p.artist}
+              title={p.title}
+              visible={active && i === top}
+              onBack={pop}
+              onOpen={openRelease}
+            />
+          )}
+        </div>
+      ))}
+      </>
     )
   }
 
@@ -286,28 +328,6 @@ function Field(props: {
         enterKeyHint="search"
       />
     </label>
-  )
-}
-
-function ResultCard({ result }: { result: SearchResult }) {
-  const { artist, album } = splitTitle(result.title)
-  const formats = (result.format ?? []).filter((f) => f !== 'Vinyl').slice(0, 3).join(', ')
-  const meta = [result.country, result.year, result.catno].filter(Boolean).join(' · ')
-  return (
-    <a className="result" href={releaseUrl(result)} target="_blank" rel="noreferrer">
-      {result.thumb ? (
-        <img className="thumb" src={result.thumb} alt="" loading="lazy" />
-      ) : (
-        <div className="thumb" aria-hidden="true" />
-      )}
-      <div className="result-text">
-        <span className="result-title">{album}</span>
-        <span className="result-artist">{artist}</span>
-        <span className="result-meta">{meta}</span>
-        {formats && <span className="result-meta">{formats}</span>}
-        {result.label?.[0] && <span className="result-meta">{result.label[0]}</span>}
-      </div>
-    </a>
   )
 }
 

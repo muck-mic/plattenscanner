@@ -7,6 +7,7 @@ interface Props {
   mode: 'barcode' | 'photo'
   onDetected: (code: string) => void
   onPhoto: (jpegBase64: string) => void
+  photoHint?: string
 }
 
 type CamState =
@@ -27,7 +28,7 @@ function cameraErrorMessage(err: unknown) {
   return 'Die Kamera konnte nicht gestartet werden.'
 }
 
-export default function CameraScanner({ active, mode, onDetected, onPhoto }: Props) {
+export default function CameraScanner({ active, mode, onDetected, onPhoto, photoHint = 'Cover oder Label formatfüllend und scharf' }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   // Read inside the detection loop so switching modes doesn't restart the camera.
   const modeRef = useRef(mode)
@@ -150,7 +151,7 @@ export default function CameraScanner({ active, mode, onDetected, onPhoto }: Pro
       )}
       {cam.state === 'running' && mode === 'photo' && (
         <>
-          <p className="camera-hint top">Cover oder Label formatfüllend und scharf</p>
+          <p className="camera-hint top">{photoHint}</p>
           <button className="shutter" aria-label="Foto aufnehmen" onClick={takePhoto}><span /></button>
         </>
       )}
