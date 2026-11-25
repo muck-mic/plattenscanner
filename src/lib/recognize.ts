@@ -5,8 +5,8 @@ import { z } from 'zod'
 export type ModelChoice = 'claude-opus-5-5' | 'claude-haiku-5-5'
 
 export const MODELS: Record<ModelChoice, { label: string; inputPerM: number; outputPerM: number }> = {
-  'claude-opus-5-5': { label: 'Claude Opus 5.5 (genauer)', inputPerM: 4, outputPerM: 20 },
-  'claude-haiku-5-5': { label: 'Claude Haiku 5.5 (günstiger)', inputPerM: 0.1, outputPerM: 0.5 },
+  'claude-opus-5-5': { label: 'Opus 5.5 (genau)', inputPerM: 4, outputPerM: 20 },
+  'claude-haiku-5-5': { label: 'Haiku 5.5 (günstig)', inputPerM: 0.1, outputPerM: 0.5 },
 }
 
 const RecordInfo = z.object({
