@@ -48,7 +48,7 @@ export default function ListScreen() {
       {records.length > 0 && (
         <>
           <label className="field">
-            <span>{f ? `${shown.length} von ${records.length} Platten` : `${records.length} Platten`}</span>
+            <span>{f ? `${shown.length} von ${records.length} Platten` : records.length === 1 ? '1 Platte' : `${records.length} Platten`}</span>
             <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Suchen in Künstler, Titel, Label …"
               autoCorrect="off" autoCapitalize="off" spellCheck={false} type="search" />
           </label>
