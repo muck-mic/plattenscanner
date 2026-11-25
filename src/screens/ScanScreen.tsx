@@ -206,7 +206,7 @@ export default function ScanScreen({ settings, update, active, goToSettings }: P
       {pages.map((p, i) => (
         <div key={i} hidden={i !== top}>
           {p.kind === 'release' ? (
-            <ReleaseView token={settings.discogsToken} id={p.id} match={p.match} onBack={pop} onOpenVersions={openVersions} />
+            <ReleaseView settings={settings} update={update} id={p.id} match={p.match} onBack={pop} onOpenVersions={openVersions} />
           ) : (
             <VersionsView
               settings={settings}

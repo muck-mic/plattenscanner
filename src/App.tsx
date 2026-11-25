@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSettings } from './lib/settings'
 import ScanScreen from './screens/ScanScreen'
 import SettingsScreen from './screens/SettingsScreen'
+import ListScreen from './screens/ListScreen'
 import { GearIcon, RecordIcon, ScanIcon } from './components/Icons'
 
 type Tab = 'scan' | 'list' | 'settings'
@@ -24,12 +25,7 @@ export default function App() {
           <ScanScreen settings={settings} update={update} active={tab === 'scan'} goToSettings={() => setTab('settings')} />
         </div>
         <div hidden={tab !== 'list'}>
-          <div className="screen">
-            <h1 className="title">Meine Liste</h1>
-            <div className="camera-placeholder">
-              <p>Deine eigene Liste kommt in Phase 5.</p>
-            </div>
-          </div>
+          <ListScreen />
         </div>
         <div hidden={tab !== 'settings'}>
           <SettingsScreen settings={settings} update={update} />

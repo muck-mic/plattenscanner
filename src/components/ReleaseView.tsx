@@ -3,6 +3,7 @@ import { DiscogsError, detailUrl, getMasterVersions, getRelease, splitTitle, typ
 import { matchLabel, type MatrixMatch } from '../lib/matrix'
 import type { Settings, UpdateSettings } from '../lib/settings'
 import CandidateList from './CandidateList'
+import SavePanel from './SavePanel'
 import { ChevronLeft } from './Icons'
 
 type Load<T> = { state: 'loading' } | { state: 'ok'; data: T } | { state: 'error'; message: string }
@@ -10,14 +11,16 @@ type Load<T> = { state: 'loading' } | { state: 'ok'; data: T } | { state: 'error
 const errorText = (err: unknown) => (err instanceof DiscogsError ? err.message : 'Unbekannter Fehler')
 
 interface ReleaseProps {
-  token: string
+  settings: Settings
+  update: UpdateSettings
   id: number
   match?: MatrixMatch
   onBack: () => void
   onOpenVersions: (masterId: number, artist: string, title: string) => void
 }
 
-export function ReleaseView({ token, id, match, onBack, onOpenVersions }: ReleaseProps) {
+export function ReleaseView({ settings, update, id, match, onBack, onOpenVersions }: ReleaseProps) {
+  const token = settings.discogsToken
   const [load, setLoad] = useState<Load<ReleaseDetail>>({ state: 'loading' })
 
   useEffect(() => {
@@ -36,12 +39,18 @@ export function ReleaseView({ token, id, match, onBack, onOpenVersions }: Releas
       <button className="back" onClick={onBack}><ChevronLeft /> Zurück</button>
       {load.state === 'loading' && <p className="muted" role="status">Lade Pressung …</p>}
       {load.state === 'error' && <p className="error" role="alert">{load.message}</p>}
-      {load.state === 'ok' && <ReleaseBody r={load.data} match={match} onOpenVersions={onOpenVersions} />}
+      {load.state === 'ok' && (
+        <>
+          <ReleaseBody r={load.data} match={match} />
+          <SavePanel settings={settings} update={update} release={load.data} match={match} />
+          <ReleaseLinks r={load.data} onOpenVersions={onOpenVersions} />
+        </>
+      )}
     </div>
   )
 }
 
-function ReleaseBody({ r, match, onOpenVersions }: { r: ReleaseDetail; match?: MatrixMatch; onOpenVersions: ReleaseProps['onOpenVersions'] }) {
+function ReleaseBody({ r, match }: { r: ReleaseDetail; match?: MatrixMatch }) {
   const image = r.images?.find((i) => i.type === 'primary') ?? r.images?.[0]
   const artist = r.artists_sort ?? ''
   const matched = new Set(match?.best.map((b) => b.discogs))
@@ -117,6 +126,14 @@ function ReleaseBody({ r, match, onOpenVersions }: { r: ReleaseDetail; match?: M
         </details>
       )}
 
+    </>
+  )
+}
+
+function ReleaseLinks({ r, onOpenVersions }: { r: ReleaseDetail; onOpenVersions: ReleaseProps['onOpenVersions'] }) {
+  const artist = r.artists_sort ?? ''
+  return (
+    <>
       <div className="stack-8">
         {r.master_id ? (
           <button className="btn ghost" onClick={() => onOpenVersions(r.master_id!, artist, r.title)}>Alle Vinyl-Pressungen dieses Albums</button>

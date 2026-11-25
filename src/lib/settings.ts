@@ -12,6 +12,10 @@ export interface Settings {
   costMonth: string
   costUsd: number
   costScans: number
+  // Where "Speichern" puts a record; the last choice is remembered.
+  saveDiscogs: boolean
+  saveLocal: boolean
+  discogsFolderId: number
 }
 
 const KEY = 'plattenscanner.settings.v1'
@@ -24,6 +28,9 @@ const DEFAULTS: Settings = {
   costMonth: '',
   costUsd: 0,
   costScans: 0,
+  saveDiscogs: true,
+  saveLocal: true,
+  discogsFolderId: 1,
 }
 
 export const currentMonth = () => new Date().toISOString().slice(0, 7)

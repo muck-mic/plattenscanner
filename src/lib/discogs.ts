@@ -29,8 +29,11 @@ async function request<T>(path: string, token: string, init: RequestInit = {}): 
   }
   if (res.status === 401) throw new DiscogsError('Discogs lehnt das Token ab. Bitte in den Einstellungen prüfen.', 401)
   if (res.status === 429) throw new DiscogsError('Zu viele Anfragen an Discogs. Bitte eine Minute warten.', 429)
+  if (res.status === 403) throw new DiscogsError('Discogs verweigert den Zugriff. Gehört die Sammlung zu deinem Token?', 403)
   if (!res.ok) throw new DiscogsError(`Discogs-Fehler ${res.status}`, res.status)
-  return res.json() as Promise<T>
+  // Some write calls answer "204 No Content".
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
 
 export interface Identity {
@@ -181,4 +184,69 @@ export const matrixIdentifiers = (r: ReleaseDetail) => (r.identifiers ?? []).fil
 
 export function detailUrl(r: ReleaseDetail) {
   return r.uri ?? `https://www.discogs.com/release/${r.id}`
+}
+
+// ---- Collection (needs the username that belongs to the token) ----
+
+const userPath = (username: string) => `/users/${encodeURIComponent(username)}/collection`
+const json = (body: unknown): RequestInit => ({
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+})
+
+export interface Folder {
+  id: number
+  name: string
+  count: number
+}
+
+/** Folders a release can be added to (folder 0 "All" is read-only). */
+export async function getFolders(token: string, username: string) {
+  const data = await request<{ folders: Folder[] }>(`${userPath(username)}/folders`, token)
+  return data.folders.filter((f) => f.id !== 0)
+}
+
+export interface CollectionField {
+  id: number
+  name: string
+  type: 'dropdown' | 'textarea' | string
+  options?: string[]
+}
+
+export async function getCollectionFields(token: string, username: string) {
+  const data = await request<{ fields: CollectionField[] }>(`${userPath(username)}/fields`, token)
+  return data.fields
+}
+
+export interface Instance {
+  instance_id: number
+  folder_id: number
+  date_added: string
+}
+
+/** Copies of this release already in the collection. */
+export async function getInstances(token: string, username: string, releaseId: number) {
+  const data = await request<{ releases: Instance[] }>(`${userPath(username)}/releases/${releaseId}`, token)
+  return data.releases
+}
+
+export async function addToCollection(token: string, username: string, folderId: number, releaseId: number) {
+  return request<{ instance_id: number }>(`${userPath(username)}/folders/${folderId}/releases/${releaseId}`, token, { method: 'POST' })
+}
+
+export function setInstanceField(
+  token: string,
+  username: string,
+  folderId: number,
+  releaseId: number,
+  instanceId: number,
+  fieldId: number,
+  value: string,
+) {
+  return request<void>(
+    `${userPath(username)}/folders/${folderId}/releases/${releaseId}/instances/${instanceId}/fields/${fieldId}`,
+    token,
+    json({ value }),
+  )
 }
