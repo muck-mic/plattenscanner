@@ -75,6 +75,18 @@ export async function searchReleases(token: string, query: SearchQuery) {
   return { total: data.pagination.items, results: data.results }
 }
 
+/**
+ * Searches by barcode, trying each variant (EAN-13 / UPC-A forms) and finally a free-text search,
+ * because Discogs stores barcodes in many spellings. Stops at the first variant with results.
+ */
+export async function searchByBarcode(token: string, variants: string[]) {
+  for (const barcode of variants) {
+    const found = await searchReleases(token, { barcode })
+    if (found.total > 0) return found
+  }
+  return searchReleases(token, { q: variants[0] })
+}
+
 /** Splits Discogs' "Artist - Title" into its parts. */
 export function splitTitle(title: string) {
   const i = title.indexOf(' - ')
