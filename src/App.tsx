@@ -21,7 +21,7 @@ export default function App() {
       <main className="content">
         {/* Screens stay mounted so form input and results survive tab switches. */}
         <div hidden={tab !== 'scan'}>
-          <ScanScreen settings={settings} active={tab === 'scan'} goToSettings={() => setTab('settings')} />
+          <ScanScreen settings={settings} update={update} active={tab === 'scan'} goToSettings={() => setTab('settings')} />
         </div>
         <div hidden={tab !== 'list'}>
           <div className="screen">

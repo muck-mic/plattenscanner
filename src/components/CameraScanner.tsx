@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { createDetector } from '../lib/barcode'
+import { captureFrame } from '../lib/recognize'
 
 interface Props {
   active: boolean
+  mode: 'barcode' | 'photo'
   onDetected: (code: string) => void
+  onPhoto: (jpegBase64: string) => void
 }
 
 type CamState =
@@ -24,8 +27,13 @@ function cameraErrorMessage(err: unknown) {
   return 'Die Kamera konnte nicht gestartet werden.'
 }
 
-export default function CameraScanner({ active, onDetected }: Props) {
+export default function CameraScanner({ active, mode, onDetected, onPhoto }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  // Read inside the detection loop so switching modes doesn't restart the camera.
+  const modeRef = useRef(mode)
+  useEffect(() => {
+    modeRef.current = mode
+  }, [mode])
   const trackRef = useRef<MediaStreamTrack | null>(null)
   const onDetectedRef = useRef(onDetected)
   useEffect(() => {
@@ -58,7 +66,7 @@ export default function CameraScanner({ active, onDetected }: Props) {
     async function loop() {
       const video = videoEl
       if (cancelled || !video) return
-      if (video.readyState >= 2) {
+      if (video.readyState >= 2 && modeRef.current === 'barcode') {
         try {
           const found = await detector.detect(video)
           const code = found[0]?.rawValue ?? ''
@@ -111,6 +119,14 @@ export default function CameraScanner({ active, onDetected }: Props) {
     }
   }, [running, retry])
 
+  function takePhoto() {
+    const video = videoRef.current
+    const jpeg = video && captureFrame(video)
+    if (!jpeg) return
+    navigator.vibrate?.(30)
+    onPhoto(jpeg)
+  }
+
   async function toggleTorch() {
     const track = trackRef.current
     if (!track) return
@@ -126,10 +142,16 @@ export default function CameraScanner({ active, onDetected }: Props) {
   return (
     <div className="camera">
       <video ref={videoRef} className="camera-video" playsInline muted autoPlay />
-      {cam.state === 'running' && (
+      {cam.state === 'running' && mode === 'barcode' && (
         <>
           <div className="scan-frame" aria-hidden="true"><div className="scan-line" /></div>
           <p className="camera-hint">Barcode in den Rahmen halten</p>
+        </>
+      )}
+      {cam.state === 'running' && mode === 'photo' && (
+        <>
+          <p className="camera-hint top">Cover oder Label formatfüllend und scharf</p>
+          <button className="shutter" aria-label="Foto aufnehmen" onClick={takePhoto}><span /></button>
         </>
       )}
       {cam.state === 'starting' && <p className="camera-status">Kamera startet …</p>}
